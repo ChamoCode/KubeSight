@@ -92,12 +92,12 @@ class KubeService:
         self.active_namespace = namespace
 
     def list_deployments(self, namespace=None):
-        """Returns a list of deployment names in the specified namespace."""
+        """Returns a list of deployment objects in the specified namespace."""
         target_ns = namespace if namespace else self.active_namespace
         try:
             apps_v1 = client.AppsV1Api()
             deployments = apps_v1.list_namespaced_deployment(target_ns)
-            return [d.metadata.name for d in deployments.items]
+            return deployments.items
         except ApiException as e:
             print(f"Error listing deployments: {e}")
             return []
@@ -106,12 +106,12 @@ class KubeService:
             return []
 
     def list_cronjobs(self, namespace=None):
-        """Returns a list of cronjob names in the specified namespace."""
+        """Returns a list of cronjob objects in the specified namespace."""
         target_ns = namespace if namespace else self.active_namespace
         try:
             batch_v1 = client.BatchV1Api()
             cronjobs = batch_v1.list_namespaced_cron_job(target_ns)
-            return [c.metadata.name for c in cronjobs.items]
+            return cronjobs.items
         except ApiException as e:
             print(f"Error listing cronjobs: {e}")
             return []
@@ -141,11 +141,62 @@ class KubeService:
         target_ns = namespace if namespace else self.active_namespace
         try:
             v1 = client.CoreV1Api()
-            pods = v1.list_namespaced_pod(target_ns, label_selector=label_selector)
+            # Convert dict selector to string if needed
+            if isinstance(label_selector, dict):
+                selector_str = ",".join([f"{k}={v}" for k, v in label_selector.items()])
+            else:
+                selector_str = label_selector
+                
+            pods = v1.list_namespaced_pod(target_ns, label_selector=selector_str)
             return pods.items
         except ApiException as e:
             print(f"Error listing pods: {e}")
             return []
+
+    def get_pod_metrics(self, namespace=None):
+        """Returns a dict of pod metrics keyed by pod name."""
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            custom_api = client.CustomObjectsApi()
+            metrics = custom_api.list_namespaced_custom_object(
+                group="metrics.k8s.io",
+                version="v1beta1",
+                namespace=target_ns,
+                plural="pods"
+            )
+            
+            metrics_map = {}
+            for item in metrics.get('items', []):
+                pod_name = item['metadata']['name']
+                containers = item.get('containers', [])
+                
+                # Aggregate container metrics
+                total_cpu = 0
+                total_mem = 0
+                
+                for c in containers:
+                    cpu_str = c['usage']['cpu']
+                    mem_str = c['usage']['memory']
+                    
+                    # Simple parsing (approximate)
+                    # CPU: 100n, 10u, 1m -> convert to nanocores or millicores? 
+                    # Let's keep strings for display or do simple conversion if needed.
+                    # For now, just storing the raw first container or summing if we parse.
+                    # To keep it simple for display, let's just store the raw values of the first container
+                    # or try to sum them up if we can parse.
+                    
+                    # Let's just store the raw list of container metrics for the view to handle
+                    pass
+
+                metrics_map[pod_name] = item
+            
+            return metrics_map
+        except ApiException as e:
+            print(f"Error listing pod metrics: {e}")
+            return {}
+        except Exception as e:
+            print(f"Unexpected error listing pod metrics: {e}")
+            return {}
 
     def get_pod_logs(self, pod_name, namespace=None):
         target_ns = namespace if namespace else self.active_namespace

@@ -46,10 +46,10 @@ class SidebarLeft(ft.Container):
         deployments = kube_service.list_deployments()
         deployment_tiles = [
             ft.ListTile(
-                title=ft.Text(d, size=12),
+                title=ft.Text(d.metadata.name, size=12),
                 leading=ft.Icon(ft.Icons.APPS, size=14),
                 content_padding=ft.padding.only(left=30),
-                on_click=lambda e, name=d: self.on_resource_click("deployment", name)
+                on_click=lambda e, name=d.metadata.name: self.on_resource_click("deployment", name)
             ) for d in deployments
         ]
         
@@ -57,14 +57,20 @@ class SidebarLeft(ft.Container):
         cronjobs = kube_service.list_cronjobs()
         cronjob_tiles = [
             ft.ListTile(
-                title=ft.Text(c, size=12),
+                title=ft.Text(c.metadata.name, size=12),
                 leading=ft.Icon(ft.Icons.SCHEDULE, size=14),
                 content_padding=ft.padding.only(left=30),
-                on_click=lambda e, name=c: self.on_resource_click("cronjob", name)
+                on_click=lambda e, name=c.metadata.name: self.on_resource_click("cronjob", name)
             ) for c in cronjobs
         ]
 
         self.tree_view.controls.extend([
+            ft.ListTile(
+                title=ft.Text("Dashboard", weight=ft.FontWeight.BOLD),
+                leading=ft.Icon(ft.Icons.DASHBOARD),
+                on_click=lambda e: self.page.pubsub.send_all("show_controllers")
+            ),
+            ft.Divider(),
             ft.ExpansionTile(
                 title=ft.Text("Workloads", weight=ft.FontWeight.BOLD),
                 leading=ft.Icon(ft.Icons.WORK),

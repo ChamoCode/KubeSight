@@ -5,6 +5,7 @@ from .sidebar_right import SidebarRight
 from .footer import Footer
 
 from src.views.resource_view import ResourceView
+from src.views.controllers_view import ControllersView
 
 class AppLayout(ft.Column):
     def __init__(self, page: ft.Page):
@@ -17,10 +18,10 @@ class AppLayout(ft.Column):
         self.sidebar_left = SidebarLeft()
         self.sidebar_right = SidebarRight()
         self.main_content = ft.Container(
-            content=ft.Text("Contenido Principal", size=20),
+            content=ControllersView(),
             expand=True,
             padding=20,
-            alignment=ft.alignment.center
+            alignment=ft.alignment.top_left
         )
         
         self.controls = [
@@ -49,5 +50,12 @@ class AppLayout(ft.Column):
                     message["name"],
                     message["namespace"]
                 )
-                self.main_content.alignment = ft.alignment.top_left # Reset alignment
+                self.main_content.update()
+        elif data == "show_controllers":
+             self.main_content.content = ControllersView()
+             self.main_content.update()
+        elif data == "refresh_resources":
+            # Refresh current view if it's ControllersView
+            if isinstance(self.main_content.content, ControllersView):
+                self.main_content.content = ControllersView()
                 self.main_content.update()

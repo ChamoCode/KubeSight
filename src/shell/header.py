@@ -42,7 +42,14 @@ class Header(ft.Container):
 
         self.content = ft.Row(
             [
-                ft.Text("KubeSight", size=20, weight=ft.FontWeight.BOLD),
+                ft.Row([
+                    ft.IconButton(
+                        icon=ft.Icons.HOME,
+                        tooltip="Home",
+                        on_click=self.go_home
+                    ),
+                    ft.Text("KubeSight", size=20, weight=ft.FontWeight.BOLD),
+                ]),
                 ft.Row(
                     [
                         ft.Icon(ft.Icons.DNS, size=16),
@@ -63,6 +70,9 @@ class Header(ft.Container):
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+    def go_home(self, e):
+        self.page.pubsub.send_all("show_controllers")
 
     def on_context_change(self, e):
         if kube_service.set_context(self.context_dropdown.value):
