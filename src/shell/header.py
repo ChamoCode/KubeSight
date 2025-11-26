@@ -1,5 +1,6 @@
 import flet as ft
 from src.services.kube_service import kube_service
+from src.views.namespace_manager import NamespaceManager
 
 class Header(ft.Container):
     def __init__(self):
@@ -49,6 +50,11 @@ class Header(ft.Container):
                         ft.VerticalDivider(width=10),
                         ft.Icon(ft.Icons.FOLDER_OPEN, size=16),
                         self.namespace_dropdown,
+                        ft.IconButton(
+                            icon=ft.Icons.ADD,
+                            tooltip="Manage Namespaces",
+                            on_click=self.open_namespace_manager
+                        )
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
@@ -61,9 +67,7 @@ class Header(ft.Container):
     def on_context_change(self, e):
         if kube_service.set_context(self.context_dropdown.value):
             # Reload namespaces
-            self.namespace_dropdown.options = [ft.dropdown.Option(ns) for ns in kube_service.get_namespaces()]
-            self.namespace_dropdown.value = "default" # Reset to default
-            self.namespace_dropdown.update()
+            self.refresh_namespaces()
             
             # Notify listeners
             self.page.pubsub.send_all("refresh_resources")
@@ -76,3 +80,19 @@ class Header(ft.Container):
         # Notify listeners
         self.page.pubsub.send_all("refresh_resources")
         print(f"Namespace switched to {self.namespace_dropdown.value}")
+
+    def open_namespace_manager(self, e):
+        try:
+            dialog = NamespaceManager(e.page, on_update=self.refresh_namespaces)
+            e.page.open(dialog)
+        except Exception as ex:
+            print(f"Error opening dialog: {ex}")
+
+    def refresh_namespaces(self):
+        self.namespace_dropdown.options = [ft.dropdown.Option(ns) for ns in kube_service.get_namespaces()]
+        # Check if current value still exists
+        current_ns = self.namespace_dropdown.value
+        if current_ns not in [opt.key for opt in self.namespace_dropdown.options]:
+             self.namespace_dropdown.value = "default"
+             kube_service.set_namespace("default")
+        self.namespace_dropdown.update()

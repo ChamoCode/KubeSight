@@ -47,6 +47,33 @@ class KubeService:
             print(f"Error setting context {context_name}: {e}")
             return False
 
+    def create_namespace(self, name):
+        """Creates a new namespace."""
+        try:
+            v1 = client.CoreV1Api()
+            namespace = client.V1Namespace(metadata=client.V1ObjectMeta(name=name))
+            v1.create_namespace(body=namespace)
+            return True
+        except ApiException as e:
+            print(f"Error creating namespace: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error creating namespace: {e}")
+            return False
+
+    def delete_namespace(self, name):
+        """Deletes a namespace."""
+        try:
+            v1 = client.CoreV1Api()
+            v1.delete_namespace(name=name)
+            return True
+        except ApiException as e:
+            print(f"Error deleting namespace: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error deleting namespace: {e}")
+            return False
+
     def get_namespaces(self):
         """Returns a list of namespace names for the current context."""
         try:
