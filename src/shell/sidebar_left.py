@@ -8,7 +8,11 @@ class SidebarLeft(ft.Container):
         self.bgcolor = ft.Colors.SURFACE_CONTAINER_HIGHEST
         self.padding = 0
         self.animate = ft.Animation(300, ft.AnimationCurve.EASE_OUT)
-        
+        self.shadow = ft.BoxShadow(
+            blur_radius=10,
+            color=ft.Colors.SHADOW,
+            offset=ft.Offset(5, 0),
+        )
         self.tree_view = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         self._load_resources()
 

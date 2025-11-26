@@ -6,12 +6,13 @@ from .footer import Footer
 
 from src.views.resource_view import ResourceView
 
-class AppLayout(ft.Row):
+class AppLayout(ft.Column):
     def __init__(self, page: ft.Page):
         super().__init__()
         self.page = page
         self.expand = True
         self.spacing = 0
+        self.horizontal_alignment = ft.CrossAxisAlignment.STRETCH
         
         self.sidebar_left = SidebarLeft()
         self.sidebar_right = SidebarRight()
@@ -23,23 +24,17 @@ class AppLayout(ft.Row):
         )
         
         self.controls = [
-            self.sidebar_left,
-            ft.Column(
+            Header(),
+            ft.Row(
                 [
-                    Header(),
-                    ft.Row(
-                        [
-                            self.main_content,
-                            self.sidebar_right
-                        ],
-                        expand=True,
-                        spacing=0
-                    ),
-                    Footer()
+                    self.sidebar_left,
+                    self.main_content,
+                    self.sidebar_right
                 ],
                 expand=True,
                 spacing=0
-            )
+            ),
+            Footer()
         ]
 
     def did_mount(self):

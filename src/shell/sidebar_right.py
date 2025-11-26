@@ -6,6 +6,11 @@ class SidebarRight(ft.Container):
         self.width = 200
         self.bgcolor = ft.Colors.SURFACE_CONTAINER_HIGHEST
         self.padding = 10
+        self.shadow = ft.BoxShadow(
+            blur_radius=10,
+            color=ft.Colors.SHADOW,
+            offset=ft.Offset(-5, 0),
+        )
         self.content = ft.Column(
             [
                 ft.Text("Actions", weight=ft.FontWeight.BOLD),
