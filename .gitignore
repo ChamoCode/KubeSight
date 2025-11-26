@@ -1,0 +1,12 @@
+# .venv
+.venv/
+
+# Flet
+.flet
+
+# Python
+__pycache__
+
+# IDE
+.idea
+.vscode
