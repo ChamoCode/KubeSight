@@ -31,6 +31,7 @@ class Header(ft.Container):
             width=200,
             options=[ft.dropdown.Option(ns) for ns in kube_service.get_namespaces()],
             value="default", # Default value, should be dynamic
+            on_change=self.on_namespace_change,
             text_size=12,
             content_padding=5,
             filled=True,
@@ -61,8 +62,17 @@ class Header(ft.Container):
         if kube_service.set_context(self.context_dropdown.value):
             # Reload namespaces
             self.namespace_dropdown.options = [ft.dropdown.Option(ns) for ns in kube_service.get_namespaces()]
-            self.namespace_dropdown.value = "default" # Reset to default or first available
+            self.namespace_dropdown.value = "default" # Reset to default
             self.namespace_dropdown.update()
+            
+            # Notify listeners
+            self.page.pubsub.send_all("refresh_resources")
             print(f"Context switched to {self.context_dropdown.value}")
         else:
             print(f"Failed to switch context to {self.context_dropdown.value}")
+
+    def on_namespace_change(self, e):
+        kube_service.set_namespace(self.namespace_dropdown.value)
+        # Notify listeners
+        self.page.pubsub.send_all("refresh_resources")
+        print(f"Namespace switched to {self.namespace_dropdown.value}")

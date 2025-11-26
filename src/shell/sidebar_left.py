@@ -95,3 +95,11 @@ class SidebarLeft(ft.Container):
             self.tree_view.visible = True
             self.content.controls[0].content.controls[1].icon = ft.Icons.MENU_OPEN
         self.update()
+
+    def did_mount(self):
+        self.page.pubsub.subscribe(self.on_refresh)
+
+    def on_refresh(self, topic):
+        if topic == "refresh_resources":
+            self._load_resources()
+            self.update()

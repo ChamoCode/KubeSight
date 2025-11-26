@@ -5,6 +5,7 @@ class KubeService:
     def __init__(self):
         self.contexts = []
         self.active_context = None
+        self.active_namespace = "default"
         self._load_config()
 
     def _load_config(self):
@@ -38,6 +39,7 @@ class KubeService:
                 if ctx['name'] == context_name:
                     self.active_context = ctx
                     break
+            self.active_namespace = "default" # Reset namespace on context switch
             return True
         except Exception as e:
             print(f"Error setting context {context_name}: {e}")
@@ -56,11 +58,16 @@ class KubeService:
              print(f"Unexpected error listing namespaces: {e}")
              return []
 
-    def list_deployments(self, namespace="default"):
+    def set_namespace(self, namespace):
+        """Sets the active namespace."""
+        self.active_namespace = namespace
+
+    def list_deployments(self, namespace=None):
         """Returns a list of deployment names in the specified namespace."""
+        target_ns = namespace if namespace else self.active_namespace
         try:
             apps_v1 = client.AppsV1Api()
-            deployments = apps_v1.list_namespaced_deployment(namespace)
+            deployments = apps_v1.list_namespaced_deployment(target_ns)
             return [d.metadata.name for d in deployments.items]
         except ApiException as e:
             print(f"Error listing deployments: {e}")
@@ -69,11 +76,12 @@ class KubeService:
             print(f"Unexpected error listing deployments: {e}")
             return []
 
-    def list_cronjobs(self, namespace="default"):
+    def list_cronjobs(self, namespace=None):
         """Returns a list of cronjob names in the specified namespace."""
+        target_ns = namespace if namespace else self.active_namespace
         try:
             batch_v1 = client.BatchV1Api()
-            cronjobs = batch_v1.list_namespaced_cron_job(namespace)
+            cronjobs = batch_v1.list_namespaced_cron_job(target_ns)
             return [c.metadata.name for c in cronjobs.items]
         except ApiException as e:
             print(f"Error listing cronjobs: {e}")
