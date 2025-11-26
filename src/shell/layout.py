@@ -4,36 +4,55 @@ from .sidebar_left import SidebarLeft
 from .sidebar_right import SidebarRight
 from .footer import Footer
 
-class AppLayout(ft.Column):
+from src.views.resource_view import ResourceView
+
+class AppLayout(ft.Row):
     def __init__(self, page: ft.Page):
         super().__init__()
+        self.page = page
         self.expand = True
         self.spacing = 0
-        self.page = page
         
-        # Components
-        self.header = Header()
         self.sidebar_left = SidebarLeft()
         self.sidebar_right = SidebarRight()
-        self.footer = Footer()
         self.main_content = ft.Container(
-            content=ft.Text("Contenido Principal"),
+            content=ft.Text("Contenido Principal", size=20),
             expand=True,
-            bgcolor=ft.Colors.SURFACE,
-            padding=20
+            padding=20,
+            alignment=ft.alignment.center
         )
-
-        # Assemble
+        
         self.controls = [
-            self.header,
-            ft.Row(
+            self.sidebar_left,
+            ft.Column(
                 [
-                    self.sidebar_left,
-                    self.main_content,
-                    self.sidebar_right,
+                    Header(),
+                    ft.Row(
+                        [
+                            self.main_content,
+                            self.sidebar_right
+                        ],
+                        expand=True,
+                        spacing=0
+                    ),
+                    Footer()
                 ],
                 expand=True,
-                spacing=0,
-            ),
-            self.footer,
+                spacing=0
+            )
         ]
+
+    def did_mount(self):
+        self.page.pubsub.subscribe(self.on_message)
+
+    def on_message(self, data):
+        if isinstance(data, tuple) and len(data) == 2:
+            topic, message = data
+            if topic == "resource_selected":
+                self.main_content.content = ResourceView(
+                    message["type"],
+                    message["name"],
+                    message["namespace"]
+                )
+                self.main_content.alignment = ft.alignment.top_left # Reset alignment
+                self.main_content.update()

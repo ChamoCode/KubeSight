@@ -1,6 +1,8 @@
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import yaml
+
 class KubeService:
     def __init__(self):
         self.contexts = []
@@ -89,6 +91,50 @@ class KubeService:
         except Exception as e:
             print(f"Unexpected error listing cronjobs: {e}")
             return []
+
+    def get_deployment(self, name, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            return apps_v1.read_namespaced_deployment(name, target_ns)
+        except ApiException as e:
+            print(f"Error getting deployment: {e}")
+            return None
+
+    def get_cronjob(self, name, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            batch_v1 = client.BatchV1Api()
+            return batch_v1.read_namespaced_cron_job(name, target_ns)
+        except ApiException as e:
+            print(f"Error getting cronjob: {e}")
+            return None
+
+    def list_pods(self, label_selector, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            v1 = client.CoreV1Api()
+            pods = v1.list_namespaced_pod(target_ns, label_selector=label_selector)
+            return pods.items
+        except ApiException as e:
+            print(f"Error listing pods: {e}")
+            return []
+
+    def get_pod_logs(self, pod_name, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            v1 = client.CoreV1Api()
+            return v1.read_namespaced_pod_log(pod_name, target_ns)
+        except ApiException as e:
+            print(f"Error getting pod logs: {e}")
+            return f"Error: {e}"
+
+    def get_resource_yaml(self, resource_obj):
+        try:
+            api_client = client.ApiClient()
+            return yaml.dump(api_client.sanitize_for_serialization(resource_obj))
+        except Exception as e:
+            return f"Error serializing to YAML: {e}"
 
 # Singleton instance
 kube_service = KubeService()

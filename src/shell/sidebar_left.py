@@ -45,7 +45,7 @@ class SidebarLeft(ft.Container):
                 title=ft.Text(d, size=12),
                 leading=ft.Icon(ft.Icons.APPS, size=14),
                 content_padding=ft.padding.only(left=30),
-                on_click=lambda e, name=d: print(f"Selected Deployment: {name}")
+                on_click=lambda e, name=d: self.on_resource_click("deployment", name)
             ) for d in deployments
         ]
         
@@ -56,7 +56,7 @@ class SidebarLeft(ft.Container):
                 title=ft.Text(c, size=12),
                 leading=ft.Icon(ft.Icons.SCHEDULE, size=14),
                 content_padding=ft.padding.only(left=30),
-                on_click=lambda e, name=c: print(f"Selected CronJob: {name}")
+                on_click=lambda e, name=c: self.on_resource_click("cronjob", name)
             ) for c in cronjobs
         ]
 
@@ -103,3 +103,10 @@ class SidebarLeft(ft.Container):
         if topic == "refresh_resources":
             self._load_resources()
             self.update()
+
+    def on_resource_click(self, resource_type, name):
+        self.page.pubsub.send_all(("resource_selected", {
+            "type": resource_type,
+            "name": name,
+            "namespace": kube_service.active_namespace
+        }))
