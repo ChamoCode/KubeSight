@@ -68,6 +68,11 @@ class SidebarLeft(ft.Container):
             ft.ListTile(
                 title=ft.Text("Dashboard", weight=ft.FontWeight.BOLD),
                 leading=ft.Icon(ft.Icons.DASHBOARD),
+                on_click=lambda e: self.page.pubsub.send_all("show_dashboard")
+            ),
+            ft.ListTile(
+                title=ft.Text("Workloads", weight=ft.FontWeight.BOLD),
+                leading=ft.Icon(ft.Icons.GRID_VIEW), # Changed icon to differentiate
                 on_click=lambda e: self.page.pubsub.send_all("show_controllers")
             ),
             ft.Divider(),

@@ -155,15 +155,21 @@ class KubeService:
 
     def get_pod_metrics(self, namespace=None):
         """Returns a dict of pod metrics keyed by pod name."""
-        target_ns = namespace if namespace else self.active_namespace
         try:
             custom_api = client.CustomObjectsApi()
-            metrics = custom_api.list_namespaced_custom_object(
-                group="metrics.k8s.io",
-                version="v1beta1",
-                namespace=target_ns,
-                plural="pods"
-            )
+            if namespace and namespace != "all":
+                metrics = custom_api.list_namespaced_custom_object(
+                    group="metrics.k8s.io",
+                    version="v1beta1",
+                    namespace=namespace,
+                    plural="pods"
+                )
+            else:
+                 metrics = custom_api.list_cluster_custom_object(
+                    group="metrics.k8s.io",
+                    version="v1beta1",
+                    plural="pods"
+                )
             
             metrics_map = {}
             for item in metrics.get('items', []):
@@ -213,6 +219,39 @@ class KubeService:
             return yaml.dump(api_client.sanitize_for_serialization(resource_obj))
         except Exception as e:
             return f"Error serializing to YAML: {e}"
+
+    def list_nodes(self):
+        """Returns a list of all nodes in the cluster."""
+        try:
+            v1 = client.CoreV1Api()
+            nodes = v1.list_node()
+            return nodes.items
+        except ApiException as e:
+            print(f"Error listing nodes: {e}")
+            return []
+        except Exception as e:
+            print(f"Unexpected error listing nodes: {e}")
+            return []
+
+    def list_events(self, namespace=None):
+        """Returns a list of events in the specified namespace."""
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            v1 = client.CoreV1Api()
+            events = v1.list_namespaced_event(target_ns)
+            # Sort by last timestamp descending
+            sorted_events = sorted(
+                events.items, 
+                key=lambda x: x.last_timestamp or x.event_time or x.metadata.creation_timestamp, 
+                reverse=True
+            )
+            return sorted_events
+        except ApiException as e:
+            print(f"Error listing events: {e}")
+            return []
+        except Exception as e:
+            print(f"Unexpected error listing events: {e}")
+            return []
 
 # Singleton instance
 kube_service = KubeService()

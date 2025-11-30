@@ -54,6 +54,10 @@ class AppLayout(ft.Column):
         elif data == "show_controllers":
              self.main_content.content = ControllersView()
              self.main_content.update()
+        elif data == "show_dashboard":
+             from src.views.dashboard.dashboard_view import DashboardView
+             self.main_content.content = DashboardView()
+             self.main_content.update()
         elif data == "refresh_resources":
             # Refresh current view if it's ControllersView
             if isinstance(self.main_content.content, ControllersView):
