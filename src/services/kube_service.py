@@ -147,7 +147,10 @@ class KubeService:
             else:
                 selector_str = label_selector
                 
-            pods = v1.list_namespaced_pod(target_ns, label_selector=selector_str)
+            if target_ns == "all":
+                pods = v1.list_pod_for_all_namespaces(label_selector=selector_str)
+            else:
+                pods = v1.list_namespaced_pod(target_ns, label_selector=selector_str)
             return pods.items
         except ApiException as e:
             print(f"Error listing pods: {e}")
@@ -202,6 +205,29 @@ class KubeService:
             return {}
         except Exception as e:
             print(f"Unexpected error listing pod metrics: {e}")
+            return {}
+
+    def get_node_metrics(self):
+        """Returns a dict of node metrics keyed by node name."""
+        try:
+            custom_api = client.CustomObjectsApi()
+            metrics = custom_api.list_cluster_custom_object(
+                group="metrics.k8s.io",
+                version="v1beta1",
+                plural="nodes"
+            )
+            
+            metrics_map = {}
+            for item in metrics.get('items', []):
+                node_name = item['metadata']['name']
+                metrics_map[node_name] = item
+            
+            return metrics_map
+        except ApiException as e:
+            print(f"Error listing node metrics: {e}")
+            return {}
+        except Exception as e:
+            print(f"Unexpected error listing node metrics: {e}")
             return {}
 
     def get_pod_logs(self, pod_name, namespace=None):

@@ -28,7 +28,7 @@ class ClusterStatus(ft.Container):
                                 ),
                             ],
                             sections_space=0,
-                            center_space_radius=30,
+                            center_space_radius=20,
                             height=120,
                             width=120,
                         ),

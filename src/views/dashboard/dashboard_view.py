@@ -23,28 +23,44 @@ class DashboardView(ft.Container):
 
         self.content = ft.Column(
             [
-                ft.Text("Dashboard", size=24, weight=ft.FontWeight.BOLD),
-                ft.Divider(),
-                ft.Row(
+                ft.ResponsiveRow(
                     [
-                        ft.Container(content=self.cluster_status, expand=1),
-                        ft.Container(content=self.resource_overview, expand=1),
-                        ft.Container(content=self.cpu_memory_utilization, expand=2),
+                        ft.Container(content=ft.Text("Overview", size=24, weight=ft.FontWeight.BOLD), col=12),
+                        ft.Container(content=ft.Divider(), col=12),
+                        
+                        # Row 1
+                        self._create_dashboard_item(self.cluster_status, col_span_lg=3, col_span_sm=12),
+                        self._create_dashboard_item(self.resource_overview, col_span_lg=3, col_span_sm=12),
+                        self._create_dashboard_item(self.cpu_memory_utilization, col_span_lg=6, col_span_sm=12),
+                        
+                        # Row 2
+                        self._create_dashboard_item(self.alerts, col_span_lg=12, col_span_sm=12),
+                        
+                        # Pod List (Full width)
+                        ft.Container(
+                            content=self.pod_list,
+                            col={"xs": 12, "sm": 12, "md": 12, "lg": 12, "xl": 12},
+                            padding=10,
+                            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                            border_radius=10,
+                        ),
                     ],
-                    spacing=20,
-                ),
-                ft.Container(height=10),
-                ft.Row(
-                    [
-                        ft.Container(content=self.alerts, expand=1),
-                    ],
-                    spacing=20,
-                ),
-                ft.Container(height=10),
-                self.pod_list,
+                )
             ],
             scroll=ft.ScrollMode.AUTO,
-            expand=True
+            expand=True,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+        )
+
+    def _create_dashboard_item(self, content, col_span_lg=3, col_span_sm=6):
+        CARD_HEIGHT = 300
+        return ft.Container(
+            content=content,
+            col={"xs": 12, "sm": col_span_sm, "md": col_span_sm, "lg": col_span_sm, "xl": col_span_lg, "xxl": col_span_lg},
+            height=CARD_HEIGHT,
+            padding=10,
+            bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+            border_radius=10,
         )
 
     def did_mount(self):
@@ -70,24 +86,27 @@ class DashboardView(ft.Container):
     def _fetch_and_update_data(self):
         # Fetch data
         nodes = kube_service.list_nodes()
-        pods = kube_service.list_pods("") # All pods in namespace
+        current_pods = kube_service.list_pods("") # Pods in current namespace
+        all_pods = kube_service.list_pods("", namespace="all") # All pods in cluster
         events = kube_service.list_events()
         metrics_map = kube_service.get_pod_metrics(namespace="all")
+        node_metrics = kube_service.get_node_metrics()
 
         # Update components
         if hasattr(self.cluster_status, 'update_data'):
-            self.cluster_status.update_data(nodes, pods)
+            self.cluster_status.update_data(nodes, all_pods)
         
         if hasattr(self.cpu_memory_utilization, 'update_data'):
              self.cpu_memory_utilization.update_data(metrics_map)
 
         if hasattr(self.resource_overview, 'update_data'):
-            self.resource_overview.update_data(nodes, metrics_map)
+            self.resource_overview.update_data(nodes, node_metrics, all_pods)
 
         if hasattr(self.alerts, 'update_data'):
             self.alerts.update_data(events)
 
-        if hasattr(self.pod_list, 'update_data'):
-            self.pod_list.update_data(pods)
+        # Only update pod list if it's actually in the view (mounted)
+        if hasattr(self.pod_list, 'update_data') and self.pod_list.page:
+            self.pod_list.update_data(current_pods)
         
         self.update()

@@ -2,18 +2,12 @@ import flet as ft
 from src.services.kube_service import kube_service
 from src.views.namespace_manager import NamespaceManager
 
-class Header(ft.Container):
+class Header(ft.AppBar):
     def __init__(self):
         super().__init__()
-        self.height = 60
-        self.padding = ft.padding.symmetric(horizontal=20)
         self.bgcolor = ft.Colors.SURFACE_CONTAINER_HIGHEST
-        self.shadow = ft.BoxShadow(
-            blur_radius=10,
-            color=ft.Colors.SHADOW,
-            offset=ft.Offset(0, 5),
-        )
-
+        self.elevation = 4
+        
         # Context Selector
         self.context_dropdown = ft.Dropdown(
             width=200,
@@ -40,36 +34,35 @@ class Header(ft.Container):
             border_color=ft.Colors.OUTLINE_VARIANT,
         )
 
-        self.content = ft.Row(
-            [
-                ft.Row([
+        self.title = ft.Row([
+            ft.IconButton(
+                icon=ft.Icons.HOME,
+                tooltip="Home",
+                on_click=self.go_home
+            ),
+            ft.Text("KubeSight", size=20, weight=ft.FontWeight.BOLD),
+        ])
+        
+        self.actions = [
+            ft.Row(
+                [
+                    ft.Icon(ft.Icons.DNS, size=16),
+                    self.context_dropdown,
+                    ft.VerticalDivider(width=10),
+                    ft.Icon(ft.Icons.FOLDER_OPEN, size=16),
+                    self.namespace_dropdown,
                     ft.IconButton(
-                        icon=ft.Icons.HOME,
-                        tooltip="Home",
-                        on_click=self.go_home
+                        icon=ft.Icons.ADD,
+                        tooltip="Manage Namespaces",
+                        on_click=self.open_namespace_manager
                     ),
-                    ft.Text("KubeSight", size=20, weight=ft.FontWeight.BOLD),
-                ]),
-                ft.Row(
-                    [
-                        ft.Icon(ft.Icons.DNS, size=16),
-                        self.context_dropdown,
-                        ft.VerticalDivider(width=10),
-                        ft.Icon(ft.Icons.FOLDER_OPEN, size=16),
-                        self.namespace_dropdown,
-                        ft.IconButton(
-                            icon=ft.Icons.ADD,
-                            tooltip="Manage Namespaces",
-                            on_click=self.open_namespace_manager
-                        )
-                    ],
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                ft.Icon(ft.Icons.PERSON_ROUNDED),
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
+                    ft.Container(width=10),
+                    ft.Icon(ft.Icons.PERSON_ROUNDED),
+                    ft.Container(width=20),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        ]
 
     def go_home(self, e):
         self.page.pubsub.send_all("show_controllers")

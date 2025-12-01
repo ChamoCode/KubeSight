@@ -1,7 +1,5 @@
 import flet as ft
 from .header import Header
-from .sidebar_left import SidebarLeft
-from .sidebar_right import SidebarRight
 from .footer import Footer
 
 from src.views.resource_view import ResourceView
@@ -15,22 +13,21 @@ class AppLayout(ft.Column):
         self.spacing = 0
         self.horizontal_alignment = ft.CrossAxisAlignment.STRETCH
         
-        self.sidebar_left = SidebarLeft()
-        self.sidebar_right = SidebarRight()
+        from src.views.dashboard.dashboard_view import DashboardView
         self.main_content = ft.Container(
-            content=ControllersView(),
+            content=DashboardView(),
             expand=True,
             padding=20,
             alignment=ft.alignment.top_left
         )
         
+        # Set the AppBar
+        self.page.appbar = Header()
+        
         self.controls = [
-            Header(),
             ft.Row(
                 [
-                    self.sidebar_left,
                     self.main_content,
-                    self.sidebar_right
                 ],
                 expand=True,
                 spacing=0
