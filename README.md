@@ -1,4 +1,7 @@
-# KubeSight 🔭
+<div style="text-align: center;">
+  <img src="docs/images/KubeSightLogo.png" alt="KubeSight Logo" width="100"/> <h1>KubeSight</h1>
+</div>
+
 
 **KubeSight** es un visor de Kubernetes diseñado para ser amigable, intuitivo y extremadamente fácil de usar. Construido con **Python** y **Flet**, ofrece una interfaz moderna y reactiva para interactuar con tus clústeres sin la complejidad de las herramientas de línea de comandos tradicionales.
 

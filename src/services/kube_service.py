@@ -279,5 +279,15 @@ class KubeService:
             print(f"Unexpected error listing events: {e}")
             return []
 
+    def check_connection(self):
+        """Checks if the connection to the cluster is valid."""
+        try:
+            v1 = client.CoreV1Api()
+            v1.list_node(limit=1)
+            return True
+        except Exception as e:
+            print(f"Connection check failed: {e}")
+            return False
+
 # Singleton instance
 kube_service = KubeService()

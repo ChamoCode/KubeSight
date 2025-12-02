@@ -15,13 +15,13 @@ class ClusterStatus(ft.Container):
                         ft.PieChart(
                             sections=[
                                 ft.PieChartSection(
-                                    75,
+                                    0,
                                     title="",
                                     color=ft.Colors.GREEN,
                                     radius=40,
                                 ),
                                 ft.PieChartSection(
-                                    25,
+                                    0,
                                     title="",
                                     color=ft.Colors.RED,
                                     radius=40,
@@ -35,8 +35,8 @@ class ClusterStatus(ft.Container):
                         ft.Column(
                             [
                                 ft.Text("HEALTHY", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN),
-                                ft.Text("Nodes: 15/16 Up", size=12, color=ft.Colors.GREEN_200),
-                                ft.Text("Pods: 230/335 Running", size=12, color=ft.Colors.GREEN_200),
+                                ft.Text("Nodes: 0/0 Up", size=12, color=ft.Colors.GREEN_200),
+                                ft.Text("Pods: 0/0 Running", size=12, color=ft.Colors.GREEN_200),
                             ],
                             alignment=ft.MainAxisAlignment.CENTER
                         )

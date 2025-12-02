@@ -84,6 +84,65 @@ class DashboardView(ft.Container):
                 time.sleep(0.1)
 
     def _fetch_and_update_data(self):
+        # Check connection first
+        if not kube_service.check_connection():
+            self.clean()
+            self.content = ft.Column(
+                [
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Icon(name=ft.Icons.ERROR_OUTLINE, color=ft.Colors.RED, size=50),
+                                ft.Text("Cannot connect to cluster", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.RED),
+                                ft.Text("Please check your configuration.", size=14)
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            alignment=ft.MainAxisAlignment.CENTER
+                        ),
+                        alignment=ft.alignment.center,
+                        expand=True
+                    )
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                expand=True
+            )
+            self.update()
+            return
+
+        # Restore dashboard layout if it was showing error
+        if len(self.content.controls) == 1 and isinstance(self.content.controls[0], ft.Container) and isinstance(self.content.controls[0].content, ft.Column) and len(self.content.controls[0].content.controls) == 3:
+             self.content = ft.Column(
+                [
+                    ft.ResponsiveRow(
+                        [
+                            ft.Container(content=ft.Text("Overview", size=24, weight=ft.FontWeight.BOLD), col=12),
+                            ft.Container(content=ft.Divider(), col=12),
+                            
+                            # Row 1
+                            self._create_dashboard_item(self.cluster_status, col_span_lg=3, col_span_sm=12),
+                            self._create_dashboard_item(self.resource_overview, col_span_lg=3, col_span_sm=12),
+                            self._create_dashboard_item(self.cpu_memory_utilization, col_span_lg=6, col_span_sm=12),
+                            
+                            # Row 2
+                            self._create_dashboard_item(self.alerts, col_span_lg=12, col_span_sm=12),
+                            
+                            # Pod List (Full width)
+                            ft.Container(
+                                content=self.pod_list,
+                                col={"xs": 12, "sm": 12, "md": 12, "lg": 12, "xl": 12},
+                                padding=10,
+                                bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                                border_radius=10,
+                            ),
+                        ],
+                    )
+                ],
+                scroll=ft.ScrollMode.AUTO,
+                expand=True,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH
+            )
+
         # Fetch data
         nodes = kube_service.list_nodes()
         current_pods = kube_service.list_pods("") # Pods in current namespace
