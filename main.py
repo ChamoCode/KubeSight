@@ -7,8 +7,10 @@ def main(page: ft.Page):
     page.padding = 0
     page.theme_mode = ft.ThemeMode.DARK
     
+    page.window_icon = "KubeSightLogo.ico"
+    
     layout = AppLayout(page)
     page.add(layout)
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.app(target=main, assets_dir="assets")
