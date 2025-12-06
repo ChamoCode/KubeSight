@@ -2,23 +2,57 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 import yaml
+import json
+import os
 
 class KubeService:
     def __init__(self):
         self.contexts = []
         self.active_context = None
         self.active_namespace = "default"
+        self._custom_contexts_file = "storage/custom_contexts.json"
         self._load_config()
 
     def _load_config(self):
+        self.contexts = []
+        
+        # 1. Load system kube config
         try:
-            # Load kube config from default location (~/.kube/config)
             config.load_kube_config()
-            self.contexts, self.active_context = config.list_kube_config_contexts()
+            system_contexts, active_context = config.list_kube_config_contexts()
+            self.contexts.extend(system_contexts)
+            self.active_context = active_context
         except Exception as e:
-            print(f"Error loading kube config: {e}")
-            self.contexts = []
-            self.active_context = None
+            print(f"Error loading system kube config: {e}")
+            
+        # 2. Load custom contexts
+        self._load_custom_contexts()
+
+    def _load_custom_contexts(self):
+        if not os.path.exists(self._custom_contexts_file):
+            return
+
+        try:
+            with open(self._custom_contexts_file, 'r') as f:
+                custom_contexts = json.load(f)
+                
+            for ctx in custom_contexts:
+                # Format to match kubernetes client structure
+                formatted_ctx = {
+                    'name': ctx['name'],
+                    'context': {
+                        'cluster': ctx['name'],
+                        'user': ctx['name']
+                    },
+                    'is_custom': True,
+                    'config': ctx # Store full config for later use
+                }
+                # Check for duplicates before adding
+                if not any(c['name'] == ctx['name'] for c in self.contexts):
+                    self.contexts.append(formatted_ctx)
+                    
+        except Exception as e:
+            print(f"Error loading custom contexts: {e}")
 
     def get_contexts(self):
         """Returns a list of context names."""
@@ -35,17 +69,89 @@ class KubeService:
     def set_context(self, context_name):
         """Sets the active context and reloads the client."""
         try:
-            config.load_kube_config(context=context_name)
-            # Update internal active context reference
-            for ctx in self.contexts:
-                if ctx['name'] == context_name:
-                    self.active_context = ctx
-                    break
+            # Find the context object
+            target_ctx = next((ctx for ctx in self.contexts if ctx['name'] == context_name), None)
+            
+            if not target_ctx:
+                return False
+
+            if target_ctx.get('is_custom'):
+                # Handle custom context loading
+                ctx_config = target_ctx['config']
+                configuration = client.Configuration()
+                configuration.host = ctx_config['server']
+                configuration.verify_ssl = not ctx_config.get('insecure', False)
+                configuration.api_key = {"authorization": "Bearer " + ctx_config['token']}
+                
+                # Create a client from the configuration
+                api_client = client.ApiClient(configuration)
+                client.Configuration.set_default(configuration)
+                
+                self.active_context = target_ctx
+            else:
+                # Handle standard kubeconfig context
+                config.load_kube_config(context=context_name)
+                self.active_context = target_ctx
+            
             self.active_namespace = "default" # Reset namespace on context switch
             return True
         except Exception as e:
             print(f"Error setting context {context_name}: {e}")
             return False
+
+    def add_custom_context(self, name, server, token, insecure=False):
+        """Adds a new custom context."""
+        new_context = {
+            "name": name,
+            "server": server,
+            "token": token,
+            "insecure": insecure
+        }
+        
+        try:
+            custom_contexts = []
+            if os.path.exists(self._custom_contexts_file):
+                with open(self._custom_contexts_file, 'r') as f:
+                    custom_contexts = json.load(f)
+            
+            # Check if name already exists
+            if any(ctx['name'] == name for ctx in custom_contexts):
+               return False, "Context name already exists"
+
+            custom_contexts.append(new_context)
+            
+            with open(self._custom_contexts_file, 'w') as f:
+                json.dump(custom_contexts, f, indent=4)
+            
+            # Reload configs to update the list
+            self._load_config()
+            return True, "Context added successfully"
+        except Exception as e:
+            return False, f"Error saving context: {e}"
+
+    def delete_custom_context(self, name):
+        """Deletes a custom context."""
+        try:
+            if not os.path.exists(self._custom_contexts_file):
+                return False, "Storage file not found"
+
+            with open(self._custom_contexts_file, 'r') as f:
+                custom_contexts = json.load(f)
+            
+            initial_len = len(custom_contexts)
+            custom_contexts = [ctx for ctx in custom_contexts if ctx['name'] != name]
+            
+            if len(custom_contexts) == initial_len:
+                return False, "Context not found"
+
+            with open(self._custom_contexts_file, 'w') as f:
+                json.dump(custom_contexts, f, indent=4)
+
+            # Reload configs
+            self._load_config()
+            return True, "Context deleted successfully"
+        except Exception as e:
+            return False, f"Error deleting context: {e}"
 
     def create_namespace(self, name):
         """Creates a new namespace."""

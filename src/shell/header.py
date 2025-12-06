@@ -1,6 +1,7 @@
 import flet as ft
 from src.services.kube_service import kube_service
 from src.views.namespace_manager import NamespaceManager
+from src.views.context_manager import ContextManager
 
 class Header(ft.AppBar):
     def __init__(self):
@@ -48,6 +49,11 @@ class Header(ft.AppBar):
                 [
                     ft.Icon(ft.Icons.DNS, size=16),
                     self.context_dropdown,
+                    ft.IconButton(
+                        icon=ft.Icons.ADD,
+                        tooltip="Manage Contexts",
+                        on_click=self.open_context_manager
+                    ),
                     ft.VerticalDivider(width=10),
                     ft.Icon(ft.Icons.FOLDER_OPEN, size=16),
                     self.namespace_dropdown,
@@ -90,6 +96,28 @@ class Header(ft.AppBar):
             e.page.open(dialog)
         except Exception as ex:
             print(f"Error opening dialog: {ex}")
+
+    def open_context_manager(self, e):
+        try:
+            dialog = ContextManager(e.page, on_update=self.refresh_contexts)
+            e.page.open(dialog)
+        except Exception as ex:
+            print(f"Error opening context manager: {ex}")
+
+    def refresh_contexts(self):
+        self.context_dropdown.options = [ft.dropdown.Option(c) for c in kube_service.get_contexts()]
+        # Check if current value still exists
+        current_ctx = self.context_dropdown.value
+        if current_ctx not in [opt.key for opt in self.context_dropdown.options]:
+             # If current context was deleted, switch to first available or reset
+             if self.context_dropdown.options:
+                 new_ctx = self.context_dropdown.options[0].key
+                 self.context_dropdown.value = new_ctx
+                 kube_service.set_context(new_ctx)
+             else:
+                 self.context_dropdown.value = None
+                 
+        self.context_dropdown.update()
 
     def refresh_namespaces(self):
         self.namespace_dropdown.options = [ft.dropdown.Option(ns) for ns in kube_service.get_namespaces()]
