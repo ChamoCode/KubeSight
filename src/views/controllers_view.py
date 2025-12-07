@@ -6,21 +6,47 @@ import threading
 import time
 
 class ControllersView(ft.Container):
-    def __init__(self):
+    def __init__(self, filter_type="all"):
         super().__init__()
         self.expand = True
         self.padding = 20
         self.running = False
+        self.filter_type = filter_type
+        
+        self.deployments_container = ft.Container()
+        self.cronjobs_container = ft.Container()
+        self.statefulsets_container = ft.Container()
+        
+        controls = []
+        if self.filter_type == "all":
+            controls.append(ft.Text("Workloads", size=24, weight=ft.FontWeight.BOLD))
+            controls.append(ft.Divider())
+        
+        if self.filter_type in ["all", "deployments"]:
+            if self.filter_type == "deployments":
+                 controls.append(ft.Text("Deployments", size=24, weight=ft.FontWeight.BOLD))
+            else:
+                 controls.append(ft.Text("Deployments", size=18, weight=ft.FontWeight.W_600))
+            controls.append(self.deployments_container)
+            if self.filter_type == "all": controls.append(ft.Divider())
+
+        if self.filter_type in ["all", "statefulsets"]:
+            if self.filter_type == "statefulsets":
+                 controls.append(ft.Text("StatefulSets", size=24, weight=ft.FontWeight.BOLD))
+            else:
+                 controls.append(ft.Text("StatefulSets", size=18, weight=ft.FontWeight.W_600))
+            controls.append(self.statefulsets_container)
+            if self.filter_type == "all": controls.append(ft.Divider())
+
+        if self.filter_type in ["all", "cronjobs"]:
+            if self.filter_type == "cronjobs":
+                 controls.append(ft.Text("CronJobs", size=24, weight=ft.FontWeight.BOLD))
+            else:
+                 controls.append(ft.Text("CronJobs", size=18, weight=ft.FontWeight.W_600))
+            controls.append(self.cronjobs_container)
+
         self.content = ft.Column(
-            [
-                ft.Text("Workloads", size=24, weight=ft.FontWeight.BOLD),
-                ft.Divider(),
-                ft.Text("Deployments", size=18, weight=ft.FontWeight.W_600),
-                ft.Container(content=ft.ProgressRing(), alignment=ft.alignment.center), # Placeholder
-                ft.Divider(),
-                ft.Text("CronJobs", size=18, weight=ft.FontWeight.W_600),
-                self._build_cronjobs_grid(),
-            ],
+            controls,
             scroll=ft.ScrollMode.AUTO,
             expand=True
         )
@@ -37,9 +63,20 @@ class ControllersView(ft.Container):
         while self.running:
             try:
                 # Update deployments grid
-                deployments_grid = self._build_deployments_grid()
-                self.content.controls[3] = deployments_grid
-                self.update()
+                if self.filter_type in ["all", "deployments"]:
+                    self.deployments_container.content = self._build_deployments_grid()
+                    self.deployments_container.update()
+
+                # Update statefulsets grid
+                if self.filter_type in ["all", "statefulsets"]:
+                    self.statefulsets_container.content = self._build_statefulsets_grid()
+                    self.statefulsets_container.update()
+
+                # Update cronjobs grid
+                if self.filter_type in ["all", "cronjobs"]:
+                    self.cronjobs_container.content = self._build_cronjobs_grid()
+                    self.cronjobs_container.update()
+                    
             except Exception as e:
                 print(f"Error in auto-refresh: {e}")
             
@@ -64,6 +101,25 @@ class ControllersView(ft.Container):
             run_spacing=10,
             controls=[
                 self._build_deployment_card(d, metrics_map) for d in deployments
+            ]
+        )
+
+    def _build_statefulsets_grid(self):
+        statefulsets = kube_service.list_statefulsets()
+        if not statefulsets:
+            return ft.Text("No statefulsets found in this namespace.")
+        
+        # Fetch all metrics for the namespace once
+        metrics_map = kube_service.get_pod_metrics()
+        
+        return ft.GridView(
+            runs_count=3,
+            max_extent=400,
+            child_aspect_ratio=0.8,
+            spacing=10,
+            run_spacing=10,
+            controls=[
+                self._build_statefulset_card(s, metrics_map) for s in statefulsets
             ]
         )
 
@@ -187,6 +243,115 @@ class ControllersView(ft.Container):
                 ),
                 padding=15,
                 on_click=lambda e: self._on_card_click("deployment", name),
+                border_radius=10,
+            ),
+            elevation=3,
+        )
+
+    def _build_statefulset_card(self, statefulset, metrics_map):
+        name = statefulset.metadata.name
+        replicas = statefulset.spec.replicas or 0
+        available = statefulset.status.ready_replicas or 0 # StatefulSet uses ready_replicas
+        
+        # Status Color Logic
+        if available == replicas:
+            status_color = ft.Colors.GREEN
+        elif available > (replicas * 0.5):
+            status_color = ft.Colors.YELLOW
+        else:
+            status_color = ft.Colors.RED
+
+        # Resources
+        containers = statefulset.spec.template.spec.containers
+        cpu_req, cpu_lim, mem_req, mem_lim = self._calculate_resources(containers)
+
+        # Fetch Pods for this statefulset
+        selector = statefulset.spec.selector.match_labels
+        pods = kube_service.list_pods(selector)
+        
+        pod_cards = []
+        for pod in pods:
+            pod_name = pod.metadata.name
+            pod_status = pod.status.phase
+            pod_metrics = metrics_map.get(pod_name)
+            
+            usage_cpu = "N/A"
+            usage_mem = "N/A"
+            
+            if pod_metrics:
+                p_containers = pod_metrics.get('containers', [])
+                if p_containers:
+                    usage_cpu = p_containers[0]['usage']['cpu']
+                    usage_mem = p_containers[0]['usage']['memory']
+
+            pod_cards.append(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text(pod_name, size=12, weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS, max_lines=1),
+                            ft.Row(
+                                [
+                                    ft.Column([
+                                        ft.Text("CPU", size=8, color=ft.Colors.OUTLINE),
+                                        ft.Text(usage_cpu, size=10, weight=ft.FontWeight.BOLD)
+                                    ]),
+                                    ft.Column([
+                                        ft.Text("MEM", size=8, color=ft.Colors.OUTLINE),
+                                        ft.Text(usage_mem, size=10, weight=ft.FontWeight.BOLD)
+                                    ]),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                            )
+                        ],
+                        spacing=5,
+                        alignment=ft.MainAxisAlignment.CENTER
+                    ),
+                    padding=8,
+                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+                    border_radius=8,
+                    border=ft.border.all(2, ft.Colors.GREEN if pod_status == "Running" else ft.Colors.RED),
+                    width=140,
+                    height=60
+                )
+            )
+
+        return ft.Card(
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Icon(ft.Icons.LAYERS, size=24, color=ft.Colors.PRIMARY), # Icon for StatefulSet
+                                ft.Text(name, size=16, weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                                ft.Container(
+                                    content=ft.Text(f"{available}/{replicas}", color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD, size=12),
+                                    bgcolor=status_color,
+                                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                                    border_radius=12
+                                )
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                        ),
+                        ft.Divider(height=10, thickness=1),
+                        ft.Row(
+                            [
+                                self._build_resource_chip("CPU", f"{cpu_req or '-'}/{cpu_lim or '-'}", ft.Icons.SPEED),
+                                self._build_resource_chip("Mem", f"{mem_req or '-'}/{mem_lim or '-'}", ft.Icons.MEMORY),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                        ),
+                        ft.Container(height=10),
+                        ft.Text("Pods", size=12, weight=ft.FontWeight.BOLD),
+                        ft.Row(
+                            pod_cards,
+                            wrap=True,
+                            spacing=5,
+                            run_spacing=5
+                        )
+                    ],
+                ),
+                padding=15,
+                on_click=lambda e: self._on_card_click("statefulset", name),
                 border_radius=10,
             ),
             elevation=3,

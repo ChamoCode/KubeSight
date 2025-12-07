@@ -225,6 +225,20 @@ class KubeService:
             print(f"Unexpected error listing cronjobs: {e}")
             return []
 
+    def list_statefulsets(self, namespace=None):
+        """Returns a list of statefulset objects in the specified namespace."""
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            statefulsets = apps_v1.list_namespaced_stateful_set(target_ns)
+            return statefulsets.items
+        except ApiException as e:
+            print(f"Error listing statefulsets: {e}")
+            return []
+        except Exception as e:
+            print(f"Unexpected error listing statefulsets: {e}")
+            return []
+
     def get_deployment(self, name, namespace=None):
         target_ns = namespace if namespace else self.active_namespace
         try:
@@ -232,6 +246,15 @@ class KubeService:
             return apps_v1.read_namespaced_deployment(name, target_ns)
         except ApiException as e:
             print(f"Error getting deployment: {e}")
+            return None
+
+    def get_statefulset(self, name, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            return apps_v1.read_namespaced_stateful_set(name, target_ns)
+        except ApiException as e:
+            print(f"Error getting statefulset: {e}")
             return None
 
     def get_cronjob(self, name, namespace=None):
