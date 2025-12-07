@@ -166,6 +166,6 @@ class DashboardView(ft.Container):
 
         # Only update pod list if it's actually in the view (mounted)
         if hasattr(self.pod_list, 'update_data') and self.pod_list.page:
-            self.pod_list.update_data(current_pods)
+            self.pod_list.update_data(all_pods)
         
         self.update()
