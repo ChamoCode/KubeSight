@@ -23,10 +23,27 @@ class ControllersView(ft.Container):
             controls.append(ft.Divider())
         
         if self.filter_type in ["all", "deployments"]:
-            if self.filter_type == "deployments":
-                 controls.append(ft.Text("Deployments", size=24, weight=ft.FontWeight.BOLD))
-            else:
-                 controls.append(ft.Text("Deployments", size=18, weight=ft.FontWeight.W_600))
+            title_size = 24 if self.filter_type == "deployments" else 18
+            weight = ft.FontWeight.BOLD if self.filter_type == "deployments" else ft.FontWeight.W_600
+            
+            controls.append(
+                ft.Row(
+                    [
+                        ft.Text("Deployments", size=title_size, weight=weight),
+                        ft.ElevatedButton(
+                            "Add", 
+                            icon=ft.Icons.ADD,
+                            style=ft.ButtonStyle(
+                                color=ft.Colors.WHITE,
+                                bgcolor=ft.Colors.PRIMARY,
+                            ),
+                            on_click=lambda _: self._open_deployment_dialog()
+                        )
+                    ],
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                )
+            )
+            controls.append(ft.Divider())
             controls.append(self.deployments_container)
             if self.filter_type == "all": controls.append(ft.Divider())
 
@@ -96,7 +113,7 @@ class ControllersView(ft.Container):
         return ft.GridView(
             runs_count=3,
             max_extent=400,
-            child_aspect_ratio=0.8, # Adjusted for taller cards with bigger pod cards
+            child_aspect_ratio=1.3,
             spacing=10,
             run_spacing=10,
             controls=[
@@ -115,7 +132,7 @@ class ControllersView(ft.Container):
         return ft.GridView(
             runs_count=3,
             max_extent=400,
-            child_aspect_ratio=0.8,
+            child_aspect_ratio=1.7,
             spacing=10,
             run_spacing=10,
             controls=[
@@ -160,49 +177,23 @@ class ControllersView(ft.Container):
         selector = deployment.spec.selector.match_labels
         pods = kube_service.list_pods(selector)
         
-        pod_cards = []
+        pod_icons = []
         for pod in pods:
             pod_name = pod.metadata.name
             pod_status = pod.status.phase
-            pod_metrics = metrics_map.get(pod_name)
             
-            usage_cpu = "N/A"
-            usage_mem = "N/A"
+            icon_color = ft.Colors.RED
+            if pod_status in ["Running", "Succeeded"]:
+                icon_color = ft.Colors.GREEN
+            elif pod_status == "Pending":
+                icon_color = ft.Colors.YELLOW
             
-            if pod_metrics:
-                p_containers = pod_metrics.get('containers', [])
-                if p_containers:
-                    usage_cpu = p_containers[0]['usage']['cpu']
-                    usage_mem = p_containers[0]['usage']['memory']
-
-            pod_cards.append(
-                ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Text(pod_name, size=12, weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS, max_lines=1),
-                            ft.Row(
-                                [
-                                    ft.Column([
-                                        ft.Text("CPU", size=8, color=ft.Colors.OUTLINE),
-                                        ft.Text(usage_cpu, size=10, weight=ft.FontWeight.BOLD)
-                                    ]),
-                                    ft.Column([
-                                        ft.Text("MEM", size=8, color=ft.Colors.OUTLINE),
-                                        ft.Text(usage_mem, size=10, weight=ft.FontWeight.BOLD)
-                                    ]),
-                                ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                            )
-                        ],
-                        spacing=5,
-                        alignment=ft.MainAxisAlignment.CENTER
-                    ),
-                    padding=8,
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                    border_radius=8,
-                    border=ft.border.all(2, ft.Colors.GREEN if pod_status == "Running" else ft.Colors.RED),
-                    width=140,
-                    height=60
+            pod_icons.append(
+                ft.Icon(
+                    ft.Icons.CIRCLE, 
+                    size=12, 
+                    color=icon_color, 
+                    tooltip=f"{pod_name}: {pod_status}"
                 )
             )
 
@@ -231,13 +222,44 @@ class ControllersView(ft.Container):
                             ],
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                         ),
-                        ft.Container(height=10),
-                        ft.Text("Pods", size=12, weight=ft.FontWeight.BOLD),
+                        ft.Container(height=5),
+                        ft.Text("Pods Status", size=12, weight=ft.FontWeight.BOLD),
                         ft.Row(
-                            pod_cards,
+                            pod_icons,
                             wrap=True,
                             spacing=5,
                             run_spacing=5
+                        ),
+                        ft.Container(expand=True),
+                        ft.Divider(height=10, thickness=1),
+                        ft.Row(
+                            [
+                                ft.IconButton(
+                                    icon=ft.Icons.LINEAR_SCALE,
+                                    tooltip="Scale",
+                                    icon_color=ft.Colors.BLUE_200,
+                                    on_click=lambda _: self._open_scale_dialog(name, replicas)
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.RESTART_ALT,
+                                    tooltip="Restart",
+                                    icon_color=ft.Colors.ORANGE_300,
+                                    on_click=lambda _: self._restart_deployment(name)
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.EDIT,
+                                    tooltip="Edit",
+                                    icon_color=ft.Colors.BLUE_GREY_300,
+                                    on_click=lambda _: self._open_deployment_dialog(deployment)
+                                ),
+                                ft.IconButton(
+                                    icon=ft.Icons.DELETE_OUTLINE,
+                                    tooltip="Delete",
+                                    icon_color=ft.Colors.RED_300,
+                                    on_click=lambda _: self._confirm_delete_deployment(name)
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_EVENLY
                         )
                     ],
                 ),
@@ -247,6 +269,104 @@ class ControllersView(ft.Container):
             ),
             elevation=3,
         )
+
+    def _open_scale_dialog(self, name, current_replicas):
+        def close_dlg(e):
+             if hasattr(self.page, "close"):
+                 self.page.close(dlg)
+             else:
+                 self.page.dialog.open = False
+                 self.page.update()
+
+        def save_scale(e):
+            if not scale_tf.value.isdigit():
+                scale_tf.error_text = "Must be a number"
+                scale_tf.update()
+                return
+            
+            success, msg = kube_service.scale_deployment(name, int(scale_tf.value))
+            success, msg = kube_service.scale_deployment(name, int(scale_tf.value))
+            if hasattr(self.page, "close"):
+                 self.page.close(dlg)
+            else:
+                 self.page.dialog.open = False
+                 self.page.update()
+            
+            self.page.snack_bar = ft.SnackBar(ft.Text(msg))
+            self.page.snack_bar.open = True
+            self.page.update()
+
+        scale_tf = ft.TextField(label="Replicas", value=str(current_replicas), keyboard_type=ft.KeyboardType.NUMBER)
+        
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"Scale {name}"),
+            content=scale_tf,
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton("Scale", on_click=save_scale),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"Scale {name}"),
+            content=scale_tf,
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton("Scale", on_click=save_scale),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        if hasattr(self.page, "open"):
+             self.page.open(dlg)
+        else:
+             self.page.dialog = dlg
+             dlg.open = True
+             self.page.update()
+
+    def _restart_deployment(self, name):
+         success, msg = kube_service.restart_deployment(name)
+         self.page.snack_bar = ft.SnackBar(ft.Text(msg))
+         self.page.snack_bar.open = True
+         self.page.update()
+
+    def _confirm_delete_deployment(self, name):
+        def close_dlg(e):
+             if hasattr(self.page, "close"):
+                 self.page.close(dlg)
+             else:
+                 self.page.dialog.open = False
+                 self.page.update()
+
+        def confirm_delete(e):
+            success, msg = kube_service.delete_deployment(name)
+        def confirm_delete(e):
+            success, msg = kube_service.delete_deployment(name)
+            if hasattr(self.page, "close"):
+                 self.page.close(dlg)
+            else:
+                 self.page.dialog.open = False
+                 self.page.update()
+            
+            self.page.snack_bar = ft.SnackBar(ft.Text(msg))
+            self.page.snack_bar.open = True
+            self.page.update()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Confirm Delete"),
+            content=ft.Text(f"Are you sure you want to delete deployment '{name}'?"),
+            actions=[
+                ft.TextButton("Cancel", on_click=close_dlg),
+                ft.TextButton("Delete", on_click=confirm_delete, style=ft.ButtonStyle(color=ft.Colors.RED)),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.dialog = dlg
+        if hasattr(self.page, "open"):
+             self.page.open(dlg)
+        else:
+             dlg.open = True
+             self.page.update()
 
     def _build_statefulset_card(self, statefulset, metrics_map):
         name = statefulset.metadata.name
@@ -269,49 +389,23 @@ class ControllersView(ft.Container):
         selector = statefulset.spec.selector.match_labels
         pods = kube_service.list_pods(selector)
         
-        pod_cards = []
+        pod_icons = []
         for pod in pods:
             pod_name = pod.metadata.name
             pod_status = pod.status.phase
-            pod_metrics = metrics_map.get(pod_name)
             
-            usage_cpu = "N/A"
-            usage_mem = "N/A"
+            icon_color = ft.Colors.RED
+            if pod_status in ["Running", "Succeeded"]:
+                icon_color = ft.Colors.GREEN
+            elif pod_status == "Pending":
+                icon_color = ft.Colors.YELLOW
             
-            if pod_metrics:
-                p_containers = pod_metrics.get('containers', [])
-                if p_containers:
-                    usage_cpu = p_containers[0]['usage']['cpu']
-                    usage_mem = p_containers[0]['usage']['memory']
-
-            pod_cards.append(
-                ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Text(pod_name, size=12, weight=ft.FontWeight.BOLD, overflow=ft.TextOverflow.ELLIPSIS, max_lines=1),
-                            ft.Row(
-                                [
-                                    ft.Column([
-                                        ft.Text("CPU", size=8, color=ft.Colors.OUTLINE),
-                                        ft.Text(usage_cpu, size=10, weight=ft.FontWeight.BOLD)
-                                    ]),
-                                    ft.Column([
-                                        ft.Text("MEM", size=8, color=ft.Colors.OUTLINE),
-                                        ft.Text(usage_mem, size=10, weight=ft.FontWeight.BOLD)
-                                    ]),
-                                ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                            )
-                        ],
-                        spacing=5,
-                        alignment=ft.MainAxisAlignment.CENTER
-                    ),
-                    padding=8,
-                    bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
-                    border_radius=8,
-                    border=ft.border.all(2, ft.Colors.GREEN if pod_status == "Running" else ft.Colors.RED),
-                    width=140,
-                    height=60
+            pod_icons.append(
+                ft.Icon(
+                    ft.Icons.CIRCLE, 
+                    size=12, 
+                    color=icon_color, 
+                    tooltip=f"{pod_name}: {pod_status}"
                 )
             )
 
@@ -340,10 +434,10 @@ class ControllersView(ft.Container):
                             ],
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                         ),
-                        ft.Container(height=10),
-                        ft.Text("Pods", size=12, weight=ft.FontWeight.BOLD),
+                        ft.Container(height=5),
+                        ft.Text("Pods Status", size=12, weight=ft.FontWeight.BOLD),
                         ft.Row(
-                            pod_cards,
+                            pod_icons,
                             wrap=True,
                             spacing=5,
                             run_spacing=5
@@ -445,3 +539,140 @@ class ControllersView(ft.Container):
             "name": name,
             "namespace": kube_service.active_namespace
         }))
+
+    def _open_deployment_dialog(self, deployment=None):
+        print(f"DEBUG: _open_deployment_dialog called. Deployment: {deployment}")
+        try:
+            if not self.page:
+                print("ERROR: self.page is None!")
+                return
+            
+            is_edit = deployment is not None
+            title = f"Edit Deployment: {deployment.metadata.name}" if is_edit else "Create New Deployment"
+            
+            # Form Fields
+            name_tf = ft.TextField(label="Name", value=deployment.metadata.name if is_edit else "", read_only=is_edit)
+            image_tf = ft.TextField(label="Image", value=deployment.spec.template.spec.containers[0].image if is_edit else "")
+            replicas_tf = ft.TextField(label="Replicas", value=str(deployment.spec.replicas) if is_edit else "1", keyboard_type=ft.KeyboardType.NUMBER)
+            
+            # Selector (Simple label for now, e.g., app=my-app)
+            default_selector = ""
+            if is_edit and deployment.spec.selector.match_labels:
+                k, v = list(deployment.spec.selector.match_labels.items())[0]
+                default_selector = f"{k}={v}"
+            selector_tf = ft.TextField(label="Selector (key=value)", value=default_selector)
+
+            # Env Vars Management
+            env_vars_col = ft.Column()
+            
+            def add_env_var_row(key="", val=""):
+                key_tf = ft.TextField(label="Key", value=key, expand=True, height=40, text_size=12)
+                val_tf = ft.TextField(label="Value", value=val, expand=True, height=40, text_size=12)
+                row = ft.Row([key_tf, val_tf, ft.IconButton(ft.Icons.DELETE, on_click=lambda e: remove_env_var_row(row))])
+                env_vars_col.controls.append(row)
+                env_vars_col.update()
+
+            def remove_env_var_row(row):
+                env_vars_col.controls.remove(row)
+                env_vars_col.update()
+
+            # Pre-fill env vars if editing
+            if is_edit and deployment.spec.template.spec.containers[0].env:
+                for env in deployment.spec.template.spec.containers[0].env:
+                     # Only handle simple key-value env vars for now
+                     if env.value is not None:
+                        add_env_var_row(env.name, env.value)
+
+            def save_deployment(e):
+                 # Collect data
+                 name = name_tf.value
+                 image = image_tf.value
+                 replicas = replicas_tf.value
+                 selector = selector_tf.value
+                 
+                 # Collect Env Vars
+                 env_vars = {}
+                 for row in env_vars_col.controls:
+                     k = row.controls[0].value
+                     v = row.controls[1].value
+                     if k: env_vars[k] = v
+
+                 if not name or not image or not replicas or not selector:
+                     self.page.snack_bar = ft.SnackBar(ft.Text("Please fill all required fields"))
+                     self.page.snack_bar.open = True
+                     self.page.update()
+                     return
+
+                 if is_edit:
+                     success, msg = kube_service.update_deployment(name, image, env_vars)
+                 else:
+                     success, msg = kube_service.create_deployment(name, image, replicas, selector, env_vars)
+                 
+                 if is_edit:
+                     success, msg = kube_service.update_deployment(name, image, env_vars)
+                 else:
+                     success, msg = kube_service.create_deployment(name, image, replicas, selector, env_vars)
+                 
+                 if hasattr(self.page, "close"):
+                     self.page.close(dlg)
+                 else:
+                     self.page.dialog.open = False
+                     self.page.update()
+                 self.page.update()
+                 self.page.snack_bar = ft.SnackBar(ft.Text(msg))
+                 self.page.snack_bar.open = True
+                 self.page.update()
+
+            def close_dlg(e):
+                 if hasattr(self.page, "close"):
+                     self.page.close(dlg)
+                 else:
+                     self.page.dialog.open = False
+                     self.page.update()
+
+            dlg = ft.AlertDialog(
+                title=ft.Text(title),
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            name_tf,
+                            image_tf,
+                            ft.Row([replicas_tf, selector_tf]),
+                            ft.Divider(),
+                            ft.Text("Environment Variables", weight=ft.FontWeight.BOLD),
+                            env_vars_col,
+                            ft.ElevatedButton("Add Env Var", on_click=lambda _: add_env_var_row())
+                        ],
+                        scroll=ft.ScrollMode.AUTO,
+                        height=400,
+                        width=600
+                    ),
+                    padding=10
+                ),
+                actions=[
+                    ft.TextButton("Cancel", on_click=close_dlg),
+                    ft.TextButton("Save", on_click=save_deployment),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            print("DEBUG: Dialog object created.")
+            
+            if hasattr(self.page, "open"):
+                print("DEBUG: Using page.open(dlg)")
+                self.page.open(dlg)
+            else:
+                print("DEBUG: Using legacy page.dialog = dlg")
+                self.page.dialog = dlg
+                dlg.open = True
+                self.page.update()
+            
+            print("DEBUG: Dialog open command sent.")
+        except Exception as e:
+            print(f"Error opening dialog: {e}")
+            import traceback
+            traceback.print_exc()
+            if self.page:
+                self.page.snack_bar = ft.SnackBar(ft.Text(f"Error: {e}"))
+                self.page.snack_bar.open = True
+                self.page.update()
+

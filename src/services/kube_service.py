@@ -211,6 +211,124 @@ class KubeService:
             print(f"Unexpected error listing deployments: {e}")
             return []
 
+    def scale_deployment(self, name, replicas, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            body = {'spec': {'replicas': int(replicas)}}
+            apps_v1.patch_namespaced_deployment_scale(name, target_ns, body)
+            return True, "Scaled successfully"
+        except ApiException as e:
+            return False, f"Error scaling: {e}"
+
+    def restart_deployment(self, name, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            import datetime
+            now = datetime.datetime.now(datetime.timezone.utc)
+            body = {
+                'spec': {
+                    'template': {
+                        'metadata': {
+                            'annotations': {
+                                'kubectl.kubernetes.io/restartedAt': now.isoformat()
+                            }
+                        }
+                    }
+                }
+            }
+            apps_v1.patch_namespaced_deployment(name, target_ns, body)
+            return True, "Restart triggered"
+        except ApiException as e:
+            return False, f"Error restarting: {e}"
+
+    def delete_deployment(self, name, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            apps_v1.delete_namespaced_deployment(name, target_ns)
+            return True, "Deleted successfully"
+        except ApiException as e:
+            return False, f"Error deleting: {e}"
+
+    def create_deployment(self, name, image, replicas, selector_label, env_vars, namespace=None):
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            
+            # Parse selector label "key=value"
+            if "=" in selector_label:
+                key, value = selector_label.split("=", 1)
+                labels = {key.strip(): value.strip()}
+            else:
+                labels = {"app": selector_label.strip()}
+
+            # Parse env vars dict to V1EnvVar list
+            k8s_env_vars = []
+            for k, v in env_vars.items():
+                k8s_env_vars.append(client.V1EnvVar(name=k, value=v))
+
+            container = client.V1Container(
+                name=name,
+                image=image,
+                env=k8s_env_vars,
+                ports=[client.V1ContainerPort(container_port=80)] # Default port, can be improved
+            )
+
+            template = client.V1PodTemplateSpec(
+                metadata=client.V1ObjectMeta(labels=labels),
+                spec=client.V1PodSpec(containers=[container])
+            )
+
+            spec = client.V1DeploymentSpec(
+                replicas=int(replicas),
+                selector=client.V1LabelSelector(match_labels=labels),
+                template=template
+            )
+
+            deployment = client.V1Deployment(
+                api_version="apps/v1",
+                kind="Deployment",
+                metadata=client.V1ObjectMeta(name=name, labels=labels),
+                spec=spec
+            )
+
+            apps_v1.create_namespaced_deployment(namespace=target_ns, body=deployment)
+            return True, "Deployment created successfully"
+        except ApiException as e:
+            return False, f"Error creating deployment: {e}"
+
+    def update_deployment(self, name, image, env_vars, namespace=None):
+        """Updates image and environment variables of the first container."""
+        target_ns = namespace if namespace else self.active_namespace
+        try:
+            apps_v1 = client.AppsV1Api()
+            
+            # Fetch existing to get current spec
+            deployment = apps_v1.read_namespaced_deployment(name, target_ns)
+            
+            # Update container 0
+            if deployment.spec.template.spec.containers:
+                container = deployment.spec.template.spec.containers[0]
+                container.image = image
+                
+                # Transform env vars
+                k8s_env_vars = []
+                for k, v in env_vars.items():
+                    k8s_env_vars.append(client.V1EnvVar(name=k, value=v))
+                
+                container.env = k8s_env_vars
+                
+                # Patch
+                apps_v1.patch_namespaced_deployment(name, target_ns, deployment)
+                return True, "Deployment updated successfully"
+            else:
+                 return False, "No containers found in deployment"
+                 
+        except ApiException as e:
+            return False, f"Error updating deployment: {e}"
+
     def list_cronjobs(self, namespace=None):
         """Returns a list of cronjob objects in the specified namespace."""
         target_ns = namespace if namespace else self.active_namespace
